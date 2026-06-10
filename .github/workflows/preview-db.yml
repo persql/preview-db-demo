@@ -1,0 +1,77 @@
+name: Preview DB
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  PERSQL_NAMESPACE: admin-5a08
+  PERSQL_DATABASE: preview-demo
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Claim preview branch
+        id: persql
+        uses: persql/preview-db-action@v1
+        with:
+          token: ${{ secrets.PERSQL_TOKEN }}
+          database: ${{ env.PERSQL_NAMESPACE }}/${{ env.PERSQL_DATABASE }}
+          branch: pr-${{ github.event.pull_request.number }}
+          role: admin # migrations run DDL
+
+      - name: Apply migrations
+        env:
+          PERSQL_TOKEN: ${{ steps.persql.outputs.token }}
+          PERSQL_URL: https://api.persql.com/v1/db/${{ env.PERSQL_NAMESPACE }}/${{ steps.persql.outputs.database-slug }}
+        run: npm run migrate
+
+      - name: Smoke test
+        env:
+          PERSQL_TOKEN: ${{ steps.persql.outputs.token }}
+          PERSQL_URL: https://api.persql.com/v1/db/${{ env.PERSQL_NAMESPACE }}/${{ steps.persql.outputs.database-slug }}
+        run: npm test
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "<!-- persql-preview-db -->";
+            const body = [
+              marker,
+              `### Preview database ready`,
+              ``,
+              `| | |`,
+              `| --- | --- |`,
+              `| Branch | \`${{ steps.persql.outputs.branch-ref }}\` |`,
+              `| Database | \`${{ env.PERSQL_NAMESPACE }}/${{ steps.persql.outputs.database-slug }}\` |`,
+              `| Outcome | ${{ steps.persql.outputs.outcome }} |`,
+              `| Expires | ${{ steps.persql.outputs.expires-at }} |`,
+              ``,
+              `Migrations applied and smoke test passed against the branch — `,
+              `\`main\` never saw a single write.`,
+            ].join("\n");
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
