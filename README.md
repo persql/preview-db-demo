@@ -1,5 +1,7 @@
 # PerSQL preview-DB demo
 
+[![Open in PerSQL](https://github.persql.com/badge.svg)](https://github.persql.com/r/persql/preview-db-demo)
+
 A working example of **one isolated SQLite branch per pull request**,
 powered by [PerSQL](https://persql.com) and
 [`persql/preview-db-action`](https://github.com/persql/preview-db-action).
