@@ -13,4 +13,10 @@ const open = await sql("SELECT title FROM todos WHERE done = 0");
 assert.equal(open.rows.length, 1);
 assert.equal(open.rows[0][0], "write the smoke test");
 
+await sql("INSERT INTO todos (title, priority) VALUES (?, ?)", ["triage the backlog", 2]);
+const urgent = await sql(
+  "SELECT title FROM todos WHERE done = 0 ORDER BY priority DESC LIMIT 1"
+);
+assert.equal(urgent.rows[0][0], "triage the backlog");
+
 console.log("smoke test passed");
